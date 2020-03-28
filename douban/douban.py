@@ -4,11 +4,18 @@ import requests
 from requests.exceptions import RequestException
 import re
 from multiprocessing import Pool
+from config import *
+import pymongo
 
 """
 使用requests和正则表达式爬取豆瓣电影，同时用线程池提高效率
 
 """
+
+# 连接mongodb
+client = pymongo.MongoClient(MONGO_URL)
+db = client[MONGO_DB]
+
 
 def get_one_page(url):
     try:
@@ -32,8 +39,8 @@ def parse_one_page(html):
     # \d+   匹配任意数字
     # re.S  可以匹配任意字符，包括换行符
     pattern = re.compile('bd doulist-subject">.*?src="(.*?)"/>.*?title">.*?target="_blank">(.*?)</a>.*?'
-                                  + 'rating_nums">(.*?)</span>.*?abstract">(.*?)<br />(.*?)<br />(.*?)'
-                                  + '<br />(.*?)<br />(.*?)</div>.*?</time>', re.S)
+                               + 'rating_nums">(.*?)</span>.*?abstract">(.*?)<br />(.*?)<br />(.*?)'
+                               + '<br />(.*?)<br />(.*?)</div>.*?</time>', re.S)
     items = re.findall(pattern, html)
     # pattern_test = re.compile('bd doulist-subject">.*?src="(.*?)"/>.*?title">.*?target="_blank">(.*?)</a>.*?'
     #                           + 'rating_nums">(.*?)</span>.*?abstract">(.*?)<br />(.*?)<br />(.*?)'
@@ -60,12 +67,21 @@ def write_to_file(content):
         f.close()
 
 
+def save_to_mongo(result):
+    try:
+        if db[MONGO_TABLE].insert(result):
+            print('储存到MONGODB成功', result)
+    except Exception:
+        print('储存到MONGODB失败', result)
+
 def main(offset):
     url = 'https://www.douban.com/doulist/1253915/?start=' + str(offset) + '&sort=seq&playable=0&sub_type='
     html = get_one_page(url)
     for item in parse_one_page(html):
         print(item)
+        print(len(item))
         write_to_file(item)
+        save_to_mongo(item)
     # print(html)
     # parse_one_page(html)
     # print(html)
